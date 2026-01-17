@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: api
+  namespace: helpdesk
+  labels:
+    app: api
+spec:
+  to:
+    kind: Service
+    name: api
+  port:
+    targetPort: 3000
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

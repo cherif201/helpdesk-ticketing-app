@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mailhog
+  namespace: helpdesk
+  labels:
+    app: mailhog
+spec:
+  to:
+    kind: Service
+    name: mailhog
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
