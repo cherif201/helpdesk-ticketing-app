@@ -1,22 +1,34 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
-import { api, Ticket, Comment, User } from '../services/api';
+import { api, Ticket, Comment, User, AuditEvent } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ArrowLeft, Trash2, History, ChevronDown, ChevronUp } from 'lucide-react';
 
 export function TicketDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAgent, isAdmin } = useAuth();
-  
+
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [commentBody, setCommentBody] = useState('');
   const [commentInternal, setCommentInternal] = useState(false);
-  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const [showAuditTrail, setShowAuditTrail] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -25,18 +37,17 @@ export function TicketDetail() {
       if (isAdmin) {
         loadUsers();
       }
+      if (isAgent || isAdmin) {
+        loadAuditTrail();
+      }
     }
-  }, [id, isAdmin]);
+  }, [id, isAdmin, isAgent]);
 
   const loadTicket = async () => {
+    if (!id) return;
     try {
-      const tickets = await api.getTickets();
-      const found = tickets.find((t: Ticket) => t.id === id);
-      if (found) {
-        setTicket(found);
-      } else {
-        setError('Ticket not found');
-      }
+      const data = await api.getTicket(id);
+      setTicket(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load ticket');
     } finally {
@@ -63,11 +74,24 @@ export function TicketDetail() {
     }
   };
 
+  const loadAuditTrail = async () => {
+    if (!id) return;
+    try {
+      const data = await api.getTicketAudit(id);
+      setAuditEvents(data);
+    } catch (err: any) {
+      console.error('Failed to load audit trail:', err);
+    }
+  };
+
   const handleUpdateStatus = async (status: 'OPEN' | 'IN_PROGRESS' | 'DONE') => {
     if (!id) return;
     try {
       await api.updateTicket(id, { status });
       await loadTicket();
+      if (isAgent || isAdmin) {
+        await loadAuditTrail();
+      }
       setError('');
     } catch (err: any) {
       setError(err.message || 'Failed to update status');
@@ -79,7 +103,9 @@ export function TicketDetail() {
     try {
       await api.assignTicket(id, agentId || null);
       await loadTicket();
-      setShowAssignDropdown(false);
+      if (isAgent || isAdmin) {
+        await loadAuditTrail();
+      }
       setError('');
     } catch (err: any) {
       setError(err.message || 'Failed to assign ticket');
@@ -111,12 +137,23 @@ export function TicketDetail() {
     }
   };
 
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'OPEN':
+        return 'default';
+      case 'IN_PROGRESS':
+        return 'secondary';
+      case 'DONE':
+        return 'outline';
+      default:
+        return 'default';
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
-        <div className="container">
-          <p>Loading ticket...</p>
-        </div>
+        <div className="text-center py-8">Loading ticket...</div>
       </Layout>
     );
   }
@@ -124,278 +161,278 @@ export function TicketDetail() {
   if (!ticket) {
     return (
       <Layout>
-        <div className="container">
-          <div style={{ textAlign: 'center', padding: '3rem' }}>
-            <h2>Ticket Not Found</h2>
-            <p>The ticket you're looking for doesn't exist or you don't have access to it.</p>
-            <button onClick={() => navigate('/tickets')} className="btn">
+        <Card className="max-w-2xl mx-auto mt-8">
+          <CardHeader>
+            <CardTitle>Ticket Not Found</CardTitle>
+            <CardDescription>The ticket you're looking for doesn't exist or you don't have access to it.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => navigate('/tickets')}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Tickets
-            </button>
-          </div>
-        </div>
+            </Button>
+          </CardContent>
+        </Card>
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <div className="container">
-        {/* Back Button */}
-        <button 
-          onClick={() => navigate(-1)} 
-          style={{ 
-            marginBottom: '1rem', 
-            padding: '0.5rem 1rem',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          ← Back
-        </button>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" onClick={() => navigate(-1)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+        </div>
 
         {error && (
-          <div style={{ 
-            padding: '1rem', 
-            marginBottom: '1rem', 
-            backgroundColor: '#f8d7da', 
-            color: '#721c24',
-            borderRadius: '4px'
-          }}>
-            {error}
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        {/* Ticket Header */}
-        <div className="ticket-card" style={{ marginBottom: '2rem' }}>
-          <div className="ticket-header">
-            <h2 style={{ margin: 0 }}>{ticket.title}</h2>
-            <span className={`status-badge status-${ticket.status.toLowerCase()}`}>
-              {ticket.status}
-            </span>
-          </div>
-
-          <p style={{ margin: '1rem 0', fontSize: '1.1rem' }}>{ticket.description}</p>
-
-          <div className="ticket-meta" style={{ marginBottom: '1rem' }}>
-            <span><strong>Created:</strong> {new Date(ticket.createdAt).toLocaleDateString()}</span>
-            <span style={{ marginLeft: '2rem' }}><strong>Created By:</strong> {ticket.user?.firstName} {ticket.user?.lastName} ({ticket.user?.email})</span>
-            {ticket.assignedTo && (
-              <span style={{ marginLeft: '2rem' }}><strong>Assigned To:</strong> {ticket.assignedTo.firstName} {ticket.assignedTo.lastName}</span>
-            )}
-            {!ticket.assignedTo && (
-              <span style={{ marginLeft: '2rem', color: '#dc3545' }}><strong>Unassigned</strong></span>
-            )}
-          </div>
-
-          {/* Status Update Buttons */}
-          <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #dee2e6' }}>
-            <h4 style={{ marginBottom: '0.5rem' }}>Update Status:</h4>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button
-                onClick={() => handleUpdateStatus('OPEN')}
-                disabled={ticket.status === 'OPEN'}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: ticket.status === 'OPEN' ? '#95a5a6' : '#3498db',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: ticket.status === 'OPEN' ? 'not-allowed' : 'pointer',
-                  opacity: ticket.status === 'OPEN' ? 0.6 : 1
-                }}
-              >
-                Open
-              </button>
-              <button
-                onClick={() => handleUpdateStatus('IN_PROGRESS')}
-                disabled={ticket.status === 'IN_PROGRESS'}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: ticket.status === 'IN_PROGRESS' ? '#95a5a6' : '#f39c12',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: ticket.status === 'IN_PROGRESS' ? 'not-allowed' : 'pointer',
-                  opacity: ticket.status === 'IN_PROGRESS' ? 0.6 : 1
-                }}
-              >
-                In Progress
-              </button>
-              <button
-                onClick={() => handleUpdateStatus('DONE')}
-                disabled={ticket.status === 'DONE'}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: ticket.status === 'DONE' ? '#95a5a6' : '#27ae60',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: ticket.status === 'DONE' ? 'not-allowed' : 'pointer',
-                  opacity: ticket.status === 'DONE' ? 0.6 : 1
-                }}
-              >
-                Done
-              </button>
+        {/* Main Ticket Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <CardTitle className="text-2xl">{ticket.title}</CardTitle>
+                <CardDescription className="mt-2">
+                  Created by {ticket.user?.firstName} {ticket.user?.lastName} on {new Date(ticket.createdAt).toLocaleDateString()}
+                </CardDescription>
+              </div>
+              <Badge variant={getStatusBadgeVariant(ticket.status)}>
+                {ticket.status.replace('_', ' ')}
+              </Badge>
             </div>
-          </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <h4 className="font-semibold mb-2">Description</h4>
+              <p className="text-muted-foreground">{ticket.description}</p>
+            </div>
 
-          {/* Assignment Section - Admin Only */}
-          {isAdmin && (
-            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #dee2e6' }}>
-              <h4 style={{ marginBottom: '0.5rem' }}>Assignment:</h4>
-              {showAssignDropdown ? (
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select 
-                    onChange={(e) => handleAssign(e.target.value)}
-                    defaultValue={ticket.assignedToUserId || ''}
-                    style={{ padding: '0.5rem', fontSize: '1rem', minWidth: '200px' }}
-                  >
-                    <option value="">-- Unassigned --</option>
-                    {users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.firstName} {user.lastName} ({user.email}) - {user.role}
-                      </option>
-                    ))}
-                  </select>
-                  <button 
-                    onClick={() => setShowAssignDropdown(false)}
-                    style={{ 
-                      padding: '0.5rem 1rem',
-                      backgroundColor: '#6c757d',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
+            <Separator />
+
+            {/* Assignment Info */}
+            <div>
+              <h4 className="font-semibold mb-2">Assignment</h4>
+              {ticket.assignedTo ? (
+                <p className="text-sm">
+                  Assigned to: <span className="font-medium">{ticket.assignedTo.firstName} {ticket.assignedTo.lastName}</span>
+                </p>
               ) : (
-                <button 
-                  onClick={() => setShowAssignDropdown(true)}
-                  style={{ 
-                    padding: '0.5rem 1rem',
-                    backgroundColor: '#17a2b8',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {ticket.assignedTo ? 'Reassign Ticket' : 'Assign Ticket'}
-                </button>
+                <p className="text-sm text-muted-foreground">Unassigned</p>
               )}
             </div>
-          )}
 
-          {/* Delete Section */}
-          {(isAdmin || (ticket.userId === ticket.user?.id)) && (
-            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #dee2e6' }}>
-              <button 
-                onClick={handleDelete}
-                style={{ 
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                🗑️ Delete Ticket
-              </button>
-              <p style={{ fontSize: '0.875rem', color: '#6c757d', marginTop: '0.5rem' }}>
-                {isAdmin ? 'Admin can delete any ticket' : 'You can delete tickets you created'}
-              </p>
+            <Separator />
+
+            {/* Status Update Buttons */}
+            <div>
+              <h4 className="font-semibold mb-3">Update Status</h4>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  onClick={() => handleUpdateStatus('OPEN')}
+                  disabled={ticket.status === 'OPEN'}
+                  variant={ticket.status === 'OPEN' ? 'secondary' : 'default'}
+                  className={ticket.status === 'OPEN' ? 'opacity-50' : ''}
+                >
+                  Mark as Open
+                </Button>
+                <Button
+                  onClick={() => handleUpdateStatus('IN_PROGRESS')}
+                  disabled={ticket.status === 'IN_PROGRESS'}
+                  variant={ticket.status === 'IN_PROGRESS' ? 'secondary' : 'default'}
+                  className={ticket.status === 'IN_PROGRESS' ? 'opacity-50' : ''}
+                >
+                  Mark as In Progress
+                </Button>
+                <Button
+                  onClick={() => handleUpdateStatus('DONE')}
+                  disabled={ticket.status === 'DONE'}
+                  variant={ticket.status === 'DONE' ? 'secondary' : 'default'}
+                  className={ticket.status === 'DONE' ? 'opacity-50' : ''}
+                >
+                  Mark as Done
+                </Button>
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* Assignment Dropdown - Admin Only */}
+            {isAdmin && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="font-semibold mb-3">Assign Ticket</h4>
+                  <Select
+                    value={ticket.assignedToUserId || 'unassigned'}
+                    onValueChange={(value) => handleAssign(value === 'unassigned' ? '' : value)}
+                  >
+                    <SelectTrigger className="w-full max-w-xs">
+                      <SelectValue placeholder="Select assignee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">-- Unassigned --</SelectItem>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.firstName} {user.lastName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            {/* Audit Trail - Admin/Agent Only */}
+            {(isAdmin || isAgent) && auditEvents.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAuditTrail(!showAuditTrail)}
+                    className="w-full justify-between"
+                  >
+                    <span className="flex items-center">
+                      <History className="mr-2 h-4 w-4" />
+                      View History ({auditEvents.length} events)
+                    </span>
+                    {showAuditTrail ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
+
+                  {showAuditTrail && (
+                    <div className="mt-4 border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>User</TableHead>
+                            <TableHead>Action</TableHead>
+                            <TableHead>Details</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {auditEvents.map((event) => (
+                            <TableRow key={event.id}>
+                              <TableCell className="text-sm">
+                                {new Date(event.createdAt).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {event.actor ? `${event.actor.firstName} ${event.actor.lastName}` : 'System'}
+                              </TableCell>
+                              <TableCell className="text-sm font-medium">
+                                {event.action}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {event.metadata && typeof event.metadata === 'object'
+                                  ? JSON.stringify(event.metadata)
+                                  : event.metadata || '-'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Delete Button */}
+            {(isAdmin || (ticket.userId === ticket.user?.id)) && (
+              <>
+                <Separator />
+                <div>
+                  <Button variant="destructive" onClick={handleDelete}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Ticket
+                  </Button>
+                  {!isAdmin && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      You can delete tickets you created
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Comments Section */}
-        <div className="ticket-card">
-          <h3 style={{ marginBottom: '1rem' }}>Comments ({comments.length})</h3>
-          
-          {comments.length === 0 ? (
-            <p style={{ color: '#6c757d', fontStyle: 'italic' }}>No comments yet</p>
-          ) : (
-            <div style={{ marginBottom: '1.5rem' }}>
-              {comments.map((comment) => (
-                <div 
-                  key={comment.id} 
-                  style={{ 
-                    padding: '1rem', 
-                    marginBottom: '0.75rem', 
-                    backgroundColor: comment.isInternal ? '#fff3cd' : '#f8f9fa',
-                    borderRadius: '4px',
-                    borderLeft: comment.isInternal ? '4px solid #ffc107' : '4px solid #6c757d'
-                  }}
-                >
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between',
-                    marginBottom: '0.5rem',
-                    fontSize: '0.875rem',
-                    color: '#6c757d'
-                  }}>
-                    <span>
-                      <strong>{comment.author?.firstName} {comment.author?.lastName}</strong>
-                      {comment.isInternal && <span style={{ color: '#856404', marginLeft: '0.5rem' }}>(Internal Note)</span>}
-                    </span>
-                    <span>{new Date(comment.createdAt).toLocaleString()}</span>
-                  </div>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{comment.body}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Add Comment Form */}
-          <form onSubmit={handleAddComment} style={{ borderTop: '1px solid #dee2e6', paddingTop: '1rem' }}>
-            <h4 style={{ marginBottom: '0.5rem' }}>Add Comment</h4>
-            <textarea
-              value={commentBody}
-              onChange={(e) => setCommentBody(e.target.value)}
-              placeholder="Enter your comment..."
-              required
-              rows={4}
-              style={{ width: '100%', padding: '0.75rem', fontSize: '1rem', marginBottom: '0.5rem' }}
-            />
-            
-            {isAgent && (
-              <div style={{ marginBottom: '0.75rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input
-                    type="checkbox"
-                    checked={commentInternal}
-                    onChange={(e) => setCommentInternal(e.target.checked)}
-                  />
-                  <span>Internal note (only visible to agents/admins)</span>
-                </label>
+        <Card>
+          <CardHeader>
+            <CardTitle>Comments ({comments.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {comments.length === 0 ? (
+              <p className="text-muted-foreground italic">No comments yet</p>
+            ) : (
+              <div className="space-y-3">
+                {comments.map((comment) => (
+                  <Card key={comment.id} className={comment.isInternal ? 'bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800' : ''}>
+                    <CardContent className="pt-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm">
+                            {comment.author?.firstName} {comment.author?.lastName}
+                          </span>
+                          {comment.isInternal && (
+                            <Badge variant="outline" className="text-xs">Internal</Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(comment.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             )}
-            
-            <button 
-              type="submit" 
-              className="btn"
-              style={{ 
-                padding: '0.75rem 1.5rem',
-                backgroundColor: '#3498db',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              Add Comment
-            </button>
-          </form>
-        </div>
+
+            <Separator />
+
+            {/* Add Comment Form */}
+            <form onSubmit={handleAddComment} className="space-y-4">
+              <div>
+                <Label htmlFor="comment">Add Comment</Label>
+                <Textarea
+                  id="comment"
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  placeholder="Enter your comment..."
+                  required
+                  rows={4}
+                  className="mt-2"
+                />
+              </div>
+
+              {isAgent && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="internal"
+                    checked={commentInternal}
+                    onCheckedChange={(checked) => setCommentInternal(checked as boolean)}
+                  />
+                  <Label htmlFor="internal" className="text-sm cursor-pointer">
+                    Internal note (only visible to agents/admins)
+                  </Label>
+                </div>
+              )}
+
+              <Button type="submit">Add Comment</Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

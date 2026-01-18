@@ -89,6 +89,46 @@ export class TicketsService {
     });
   }
 
+  async findOne(ticketId: string, userId: string, user?: any) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+
+    // Authorization: Users can view tickets they created OR tickets assigned to them OR admins can view all
+    const canView =
+      ticket.userId === userId ||
+      ticket.assignedToUserId === userId ||
+      user?.role === UserRole.ADMIN;
+
+    if (!canView) {
+      throw new ForbiddenException('You do not have access to this ticket');
+    }
+
+    return ticket;
+  }
+
   async update(ticketId: string, userId: string, dto: UpdateTicketDto, user?: any) {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id: ticketId },
@@ -188,13 +228,18 @@ export class TicketsService {
   async getInbox(userId: string) {
     return this.prisma.ticket.findMany({
       where: {
-        OR: [
-          { assignedToUserId: userId },
-          { userId: userId },
-        ],
+        assignedToUserId: userId,
       },
       include: {
         user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        assignedTo: {
           select: {
             id: true,
             email: true,

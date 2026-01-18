@@ -2,7 +2,7 @@
 # This script helps you view and delete test users from the OpenShift PostgreSQL database
 
 $namespace = "chrif0709-dev"
-$podName = "postgres-1-vbzzb"
+$podName = "postgres-1-sfksn"
 
 Write-Host "`n=====================================" -ForegroundColor Cyan
 Write-Host "OpenShift Database User Management" -ForegroundColor Cyan

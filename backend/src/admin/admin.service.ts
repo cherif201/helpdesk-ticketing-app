@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AuditService } from '../audit/audit.service';
@@ -72,5 +72,48 @@ export class AdminService {
         createdAt: 'desc',
       },
     });
+  }
+
+  async deleteUser(userId: string, actorId: string) {
+    // Prevent self-deletion
+    if (userId === actorId) {
+      throw new BadRequestException('You cannot delete your own account');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Delete user (cascading will handle related records via Prisma schema)
+    await this.prisma.user.delete({
+      where: { id: userId },
+    });
+
+    await this.audit.log({
+      actorId,
+      action: 'user.deleted',
+      entityType: 'user',
+      entityId: userId,
+      metadata: { email: user.email, role: user.role },
+    });
+
+    return { message: 'User deleted successfully' };
+  }
+
+  async getDashboardStatistics() {
+    const [totalTickets, openTickets, inProgressTickets, doneTickets] = await Promise.all([
+      this.prisma.ticket.count(),
+      this.prisma.ticket.count({ where: { status: 'OPEN' } }),
+      this.prisma.ticket.count({ where: { status: 'IN_PROGRESS' } }),
+      this.prisma.ticket.count({ where: { status: 'DONE' } }),
+    ]);
+
+    return {
+      totalTickets,
+      openTickets,
+      inProgressTickets,
+      doneTickets,
+    };
   }
 }

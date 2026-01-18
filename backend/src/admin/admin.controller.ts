@@ -1,4 +1,4 @@
-import { Controller, Patch, Param, Body, UseGuards, Get, Request } from '@nestjs/common';
+import { Controller, Patch, Param, Body, UseGuards, Get, Request, Delete } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -37,5 +37,20 @@ export class AdminController {
   @ApiOperation({ summary: 'List all users (ADMIN only)' })
   async getUsers() {
     return this.adminService.getUsers();
+  }
+
+  @Get('dashboard/statistics')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get dashboard statistics (ADMIN only)' })
+  async getDashboardStatistics() {
+    return this.adminService.getDashboardStatistics();
+  }
+
+  @Delete('users/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete user (ADMIN only)' })
+  async deleteUser(@Param('id') userId: string, @Request() req) {
+    console.log('[ADMIN] Deleting user:', { userId, actorId: req.user?.userId });
+    return this.adminService.deleteUser(userId, req.user?.userId);
   }
 }

@@ -6,6 +6,7 @@ interface AuthResponse {
     email: string;
     firstName?: string;
     lastName?: string;
+    role: 'AGENT' | 'ADMIN';
   };
   token: string;
 }
@@ -176,6 +177,19 @@ class ApiService {
     return response.json();
   }
 
+  async getTicket(id: string): Promise<Ticket> {
+    const response = await fetch(`${API_BASE_URL}/tickets/${id}`, {
+      headers: this.getHeaders(true),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch ticket');
+    }
+
+    return response.json();
+  }
+
   async createTicket(data: { title: string; description: string }): Promise<Ticket> {
     const response = await fetch(`${API_BASE_URL}/tickets`, {
       method: 'POST',
@@ -243,6 +257,38 @@ class ApiService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.message || 'Failed to fetch users');
+    }
+
+    return response.json();
+  }
+
+  async deleteUser(userId: string): Promise<MessageResponse> {
+    const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(true),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete user');
+    }
+
+    return response.json();
+  }
+
+  async getDashboardStatistics(): Promise<{
+    totalTickets: number;
+    openTickets: number;
+    inProgressTickets: number;
+    doneTickets: number;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/admin/dashboard/statistics`, {
+      headers: this.getHeaders(true),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch dashboard statistics');
     }
 
     return response.json();

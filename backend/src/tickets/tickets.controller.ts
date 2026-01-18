@@ -38,6 +38,27 @@ export class TicketsController {
     return this.ticketsService.findAllByUser(req.user.userId, req.user, showAll === 'true');
   }
 
+  @Get('inbox')
+  @ApiOperation({ summary: 'Get tickets assigned to me' })
+  @ApiResponse({ status: 200, description: 'Returns array of assigned tickets.' })
+  async getInbox(@Request() req) {
+    return this.ticketsService.getInbox(req.user.userId);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get ticket by ID',
+    description: 'Retrieve a single ticket. Users can view tickets they created or that are assigned to them.'
+  })
+  @ApiParam({ name: 'id', description: 'Ticket UUID', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Returns the ticket.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - JWT token missing or invalid.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - User can only view their own tickets or assigned tickets.' })
+  @ApiResponse({ status: 404, description: 'Ticket not found.' })
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.ticketsService.findOne(id, req.user.userId, req.user);
+  }
+
   @Patch(':id')
   @ApiOperation({
     summary: 'Update ticket status',
@@ -64,13 +85,6 @@ export class TicketsController {
     @Request() req,
   ) {
     return this.ticketsService.assignTicket(id, dto.assignedToUserId, req.user.userId);
-  }
-
-  @Get('inbox')
-  @ApiOperation({ summary: 'Get tickets assigned to me or created by me' })
-  @ApiResponse({ status: 200, description: 'Returns array of assigned or created tickets.' })
-  async getInbox(@Request() req) {
-    return this.ticketsService.getInbox(req.user.userId);
   }
 
   @Get(':id/audit')

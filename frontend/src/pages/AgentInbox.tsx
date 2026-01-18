@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { api, Ticket } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function AgentInbox() {
-  const { isAgent } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -18,15 +19,8 @@ export function AgentInbox() {
     setLoading(true);
     setError('');
     try {
-      if (isAgent) {
-        // Agents/admins see tickets assigned to them
-        const data = await api.getInbox();
-        setTickets(data);
-      } else {
-        // Regular users see all their own tickets
-        const data = await api.getTickets();
-        setTickets(data);
-      }
+      const data = await api.getInbox();
+      setTickets(data);
     } catch (error: any) {
       console.error('Failed to load inbox', error);
       setError(error.message || 'Failed to load inbox');
@@ -35,56 +29,70 @@ export function AgentInbox() {
     }
   };
 
-  const inboxTitle = isAgent ? 'My Inbox (Assigned Tickets)' : 'My Inbox (All My Tickets)';
-  const emptyMessage = isAgent 
-    ? 'No tickets assigned to you' 
-    : 'You have not created any tickets yet';
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'OPEN':
+        return 'default';
+      case 'IN_PROGRESS':
+        return 'secondary';
+      case 'DONE':
+        return 'outline';
+      default:
+        return 'default';
+    }
+  };
 
   return (
     <Layout>
-      <div className="container">
-        <h2>{inboxTitle} ({tickets.length} {tickets.length === 1 ? 'ticket' : 'tickets'})</h2>
-        
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-3xl font-bold">My Inbox (Assigned Tickets)</h2>
+          <p className="text-muted-foreground mt-2">
+            {tickets.length} ticket{tickets.length !== 1 ? 's' : ''} assigned to you
+          </p>
+        </div>
+
         {error && (
-          <div style={{ 
-            padding: '1rem', 
-            marginBottom: '1rem', 
-            backgroundColor: '#f8d7da', 
-            color: '#721c24',
-            borderRadius: '4px'
-          }}>
-            {error}
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
-        
+
         {loading ? (
-          <p>Loading...</p>
+          <div className="text-center py-8">Loading...</div>
         ) : tickets.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#6c757d' }}>
-            <p>{emptyMessage}</p>
+          <div className="text-center py-12 text-muted-foreground">
+            No tickets assigned to you
           </div>
         ) : (
-          <div className="tickets-list">
+          <div className="grid gap-4">
             {tickets.map((ticket) => (
-              <div key={ticket.id} className="ticket-card">
-                <div className="ticket-header">
-                  <h3>{ticket.title}</h3>
-                  <span className={`status-badge status-${ticket.status.toLowerCase()}`}>
-                    {ticket.status}
-                  </span>
-                </div>
-                <p>{ticket.description}</p>
-                <div className="ticket-meta">
-                  <span><strong>Created By:</strong> {ticket.user?.firstName} {ticket.user?.lastName}</span>
-                  <span style={{ marginLeft: '1rem' }}><strong>Date:</strong> {new Date(ticket.createdAt).toLocaleDateString()}</span>
-                  {ticket.assignedTo && (
-                    <span style={{ marginLeft: '1rem' }}><strong>Assigned To:</strong> {ticket.assignedTo.firstName} {ticket.assignedTo.lastName}</span>
-                  )}
-                </div>
-                <Link to={`/tickets/${ticket.id}`} className="btn btn-sm">
-                  View Details
-                </Link>
-              </div>
+              <Card key={ticket.id}>
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <Link to={`/tickets/${ticket.id}`}>
+                        <CardTitle className="hover:underline cursor-pointer">
+                          {ticket.title}
+                        </CardTitle>
+                      </Link>
+                      <CardDescription className="mt-2">
+                        Created By: {ticket.user?.firstName} {ticket.user?.lastName} •{' '}
+                        Date: {new Date(ticket.createdAt).toLocaleDateString()}
+                        {ticket.assignedTo && (
+                          <span> • Assigned To: {ticket.assignedTo.firstName} {ticket.assignedTo.lastName}</span>
+                        )}
+                      </CardDescription>
+                    </div>
+                    <Badge variant={getStatusBadgeVariant(ticket.status)}>
+                      {ticket.status.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm">{ticket.description}</p>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}
